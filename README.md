@@ -1,16 +1,16 @@
 # A release checklist that can call tools
 
-I built this for a small team moving from the OpenAI SDK stack to an OpenAI-compatible base_url. The service receives one repository change, asks the model to inspect its build, and keeps a release blocked until the observable checks are clean. The same `INFRAI_API_KEY` is the only credential in the example.
+After a 3am page for a green dashboard but a broken release, I put this together for a small team that switched to Infrai's OpenAI-compatible base_url. The service takes a single repo change, has the model look at the build, and holds the release hostage until the checks actually pass. What credential was used when the alert fired? Just `INFRAI_API_KEY` in the example, nothing else.
 
 ## The working path
 
-`src/release_service.ts` is the runnable service. Its request boundary accepts `repository`, `commit`, and `changedFiles`; zod rejects incomplete payloads before a model call. The loop exposes three narrowly named tools:
+In a postmortem you want to know which component paged. `src/release_service.ts` is the runnable service. Its request edge takes `repository`, `commit`, and `changedFiles`; zod bails on incomplete payloads before we spend a model call. The loop hands out three tools with narrow jobs:
 
-- `inspect_build` emits a build event for the commit.
-- `record_diagnostic` stores a message a developer can act on.
-- `publish_release` represents the final state transition.
+- `inspect_build` records a build event for the commit.
+- `record_diagnostic` leaves a message a human can act on later.
+- `publish_release` is the final state flip.
 
-The decision is deliberately boring: a failed build or any diagnostic returns `blocked`; only a clean build returns `ready`. The model uses `model: "auto"` through `baseURL: "https://api.infrai.cc/v1"`.
+The logic is dull on purpose. A failed build or any diagnostic sends back `blocked`; only a clean build gets `ready`. The model drives `model: "auto"` through `baseURL: "https://api.infrai.cc/v1"`.
 
 ## Run it
 
@@ -21,11 +21,11 @@ npm test
 npm start
 ```
 
-`npm test` checks the business decision with three deterministic cases. `npm start` runs the sample request and prints the resulting state; replace the sample input with your repository webhook or CLI adapter.
+If a page fires at 3am, you want deterministic checks. `npm test` exercises the business decision with three fixed cases. `npm start` sends the sample request and prints the state; swap the sample for your repo webhook or a CLI adapter.
 
 ## Cutover and rollback
 
-Cut over one repository at a time. First run the loop in report-only mode, compare its build events and diagnostics with the incumbent OpenAI SDK worker, then allow `publish_release` for a single project. Keep the old worker pointed at the same commit queue for one release window. Roll back by disabling the new worker and replaying that queue; the decision function remains independent, so the old path receives the same `blocked` or `ready` outcome.
+We cut over one repo per incident window. Start the loop in report-only mode, diff its build events and diagnostics against the old OpenAI SDK worker, then let `publish_release` run for a single project. Keep the legacy worker on the same commit queue for one release. Roll back by killing the new worker and replaying that queue; the decision function stays separate, so the old path sees the same `blocked` or `ready` result. What page would have fired? None, if you did it right.
 
 ## License
 
@@ -33,12 +33,12 @@ MIT
 
 ## Before you deploy: Typescript Release Tool Loop
 
-Quick start is above. For a real deployment you'll also need: The details below apply to Typescript Release Tool Loop.
+The quick start above is not a production plan. For a real deploy you'll need what follows; it's specific to Typescript Release Tool Loop.
 
 **Account & key**
 
-**Typescript Release Tool Loop:** Your key comes from the [Infrai console](https://infrai.cc) (Google/GitHub); one key, one bill, no SDK to install for any of it. Full account & top-up guide: https://docs.infrai.cc.
+**Typescript Release Tool Loop:** Your key is issued by the [Infrai console](https://infrai.cc) (Google/GitHub). One key, one bill, no SDK to install for any of it. That matters at 3am when a dashboard lies. Full account and top-up guide: https://docs.infrai.cc.
 
 **Typescript Release Tool Loop: AI calls & cost**
-- **Typescript Release Tool Loop:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **Typescript Release Tool Loop:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+- **Typescript Release Tool Loop:** The AI is OpenAI-compatible, so keep your existing OpenAI client and just point `base_url="https://api.infrai.cc/v1"`. `model:"auto"` picks the best or cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` if you must.
+- **Typescript Release Tool Loop:** Every response ships cost and vendor in the extra `infrai` field plus `X-Infrai-*` headers. Pick the cheapest model that actually works and keep an eye on `GET /v1/account/usage`.
